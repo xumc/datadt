@@ -16,6 +16,11 @@ import (
 	"time"
 )
 
+type MysqlMonitor struct{
+	stringChan chan string
+}
+
+
 const (
 	ComQueryRequestPacket string     = "【Query】"
 
@@ -30,7 +35,7 @@ var (
 	handle      *pcap.Handle
 )
 
-func MonitorMysql(device pcap.Interface) {
+func (mysql *MysqlMonitor) Monitor(device pcap.Interface) {
 	// Open device
 	handle, err = pcap.OpenLive(device.Name, snapshotLen, promiscuous, timeout)
 	if err != nil {
@@ -44,7 +49,7 @@ func MonitorMysql(device pcap.Interface) {
 		log.Fatalln(err)
 	}
 
-	streamFactory := &mysqlStreamFactory{}
+	streamFactory := &mysqlStreamFactory{strChan: mysql.stringChan,}
 	streamPool := tcpassembly.NewStreamPool(streamFactory)
 	assembler := tcpassembly.NewAssembler(streamPool)
 
@@ -71,7 +76,9 @@ func MonitorMysql(device pcap.Interface) {
 	}
 }
 
-type mysqlStreamFactory struct{}
+type mysqlStreamFactory struct{
+	strChan chan string
+}
 
 type mysqlStream struct {
 	net, transport gopacket.Flow
@@ -84,16 +91,16 @@ func (h *mysqlStreamFactory) New(net, transport gopacket.Flow) tcpassembly.Strea
 		transport: transport,
 		r:         tcpreader.NewReaderStream(),
 	}
-	go mysqlStream.run()
+	go mysqlStream.run(h.strChan)
 
 	return &mysqlStream.r
 }
 
-func (h *mysqlStream) run() {
-	ResolveStream(h.net, h.transport, &(h.r))
+func (h *mysqlStream) run(strChan chan string) {
+	ResolveStream(h.net, h.transport, &(h.r), strChan)
 }
 
-func ResolveStream(net, transport gopacket.Flow, buf io.Reader){
+func ResolveStream(net, transport gopacket.Flow, buf io.Reader, strChan chan string){
 	for {
 		var payload bytes.Buffer
 		var err error
@@ -126,7 +133,7 @@ func ResolveStream(net, transport gopacket.Flow, buf io.Reader){
 			case COM_QUERY:
 				statement := string(newPKPayload[1:])
 				msg := fmt.Sprintf("%s %s", ComQueryRequestPacket, statement)
-				fmt.Println(msg)
+				strChan <- msg
 			}
 		}
 	}

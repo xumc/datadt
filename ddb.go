@@ -13,7 +13,11 @@ import (
 	"sync"
 )
 
-func TailDDB(tables []string, outputer chan <- outputItem) {
+type DDBStreamMonitor struct{
+	tableChan chan <- OutputItem
+}
+
+func (ds *DDBStreamMonitor) Monitor(tables []string) {
 	streamSvc, dynamoSvc := initDDB()
 
 	checkTables(tables, dynamoSvc)
@@ -23,7 +27,7 @@ func TailDDB(tables []string, outputer chan <- outputItem) {
 	wg := sync.WaitGroup{}
 	for _, tt := range tables {
 		wg.Add(1)
-		go tailDDBTable(tt, streamSvc, dynamoSvc, outputer)
+		go tailDDBTable(tt, streamSvc, dynamoSvc, ds.tableChan)
 	}
 }
 
@@ -35,7 +39,7 @@ func enableStreams(tables []string, dynamoSvc *dynamodb.DynamoDB) {
 			os.Exit(1)
 		}
 
-		if *dto.Table.StreamSpecification.StreamEnabled && *dto.Table.StreamSpecification.StreamViewType == dynamodb.StreamViewTypeNewAndOldImages {
+		if dto.Table.StreamSpecification != nil && *dto.Table.StreamSpecification.StreamEnabled && *dto.Table.StreamSpecification.StreamViewType == dynamodb.StreamViewTypeNewAndOldImages {
 			continue
 		}
 
@@ -79,7 +83,7 @@ func checkTables(tables []string, dynamoSvc *dynamodb.DynamoDB) {
 	}
 }
 
-func tailDDBTable(table string, streamSvc *dynamodbstreams.DynamoDBStreams, dynamoSvc *dynamodb.DynamoDB, outputer chan <- outputItem) {
+func tailDDBTable(table string, streamSvc *dynamodbstreams.DynamoDBStreams, dynamoSvc *dynamodb.DynamoDB, outputer chan <- OutputItem) {
 	streamSubscriber := stream.NewStreamSubscriber(dynamoSvc, streamSvc, table)
 	ch, errCh := streamSubscriber.GetStreamDataAsync()
 
@@ -91,10 +95,11 @@ func tailDDBTable(table string, streamSvc *dynamodbstreams.DynamoDBStreams, dyna
 	}(errCh)
 
 	for record := range ch {
-		outputer <- outputItem{
-			tableName: table,
-			action: *record.EventName,
-			changes: translateChanges(record.Dynamodb),
+		fmt.Println(ch)
+		outputer <- OutputItem{
+			TableName: table,
+			Action: *record.EventName,
+			Changes: translateChanges(record.Dynamodb),
 		}
 	}
 }
@@ -115,8 +120,8 @@ func translateChanges(changes *dynamodbstreams.StreamRecord) [][3]string {
 	ret := make([][3]string, len(allKeys))
 
 	for i, k := range allKeys {
-		oldVal := translateValue(changes.OldImage[k])
-		newVal := translateValue(changes.NewImage[k])
+		oldVal := translateDDBValue(changes.OldImage[k])
+		newVal := translateDDBValue(changes.NewImage[k])
 
 		ret[i] = [3]string{k, oldVal, newVal }
 	}
@@ -124,7 +129,7 @@ func translateChanges(changes *dynamodbstreams.StreamRecord) [][3]string {
 	return ret
 }
 
-func translateValue(value *dynamodb.AttributeValue) string {
+func translateDDBValue(value *dynamodb.AttributeValue) string {
 	if value == nil {
 		return "undefined"
 	}

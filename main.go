@@ -1,49 +1,59 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"github.com/google/gopacket/pcap"
-	"github.com/olekukonko/tablewriter"
+	"golang.org/x/sync/errgroup"
+	"log"
 	"os"
 )
 
-type outputItem struct {
-	tableName string
-	action string
-	changes [][3]string
-}
-
 func main() {
-	typ := flag.String("type", "ddb", "ddb or mysql")
-	table := flag.String("table", "", "table names")
+	tableOutputChan := make(chan OutputItem)
+	stringChan := make(chan string)
 
-	flag.Parse()
+	var g = errgroup.Group{}
 
-	outputer := make(chan outputItem)
-	switch *typ {
-	case "ddb":
-		TailDDB([]string{*table}, outputer)
-	case "mysql":
-		MonitorMysql(pcap.Interface{Name: "lo0"})
-	}
+	g.Go(func() error {
+		ddbStream := &DDBStreamMonitor{tableChan: tableOutputChan}
+		ddbStream.Monitor([]string{"table1"})
+		return nil
+	})
 
+	g.Go(func() error {
+		mysql := &MysqlMonitor{stringChan: stringChan}
+		mysql.Monitor(pcap.Interface{Name: "lo0"})
+		return nil
+	})
 
-	outputTo := os.Stdout
-	for o := range outputer {
-		fmt.Fprintln(outputTo)
-		fmt.Fprintf(outputTo, "%s	%s\n", o.action, o.tableName)
+	g.Go(func() error {
+		mysqlbinlog := &MysqlBinlogMonitor{tableChan: tableOutputChan}
+		mysqlbinlog.Monitor()
+		return nil
+	})
 
-		tw := tablewriter.NewWriter(outputTo)
-		tw.SetHeader([]string{"Name", "Old Value", "New Value"})
-		for _, c := range o.changes {
-			tw.Append(c[:3])
+	g.Go(func() error {
+		defaultOutputer := &DefaultOutputer{Writer: os.Stdout,}
+
+		for {
+			select {
+			case item := <- tableOutputChan:
+				err := defaultOutputer.WriteTableItem(item)
+				if err != nil {
+					return err
+				}
+			case str := <- stringChan:
+				err := defaultOutputer.WriteStringItem(str)
+				if err != nil {
+					return err
+				}
+			}
 		}
-		tw.SetRowLine(true)
-		tw.SetColMinWidth(1, 35)
-		tw.SetColMinWidth(2, 35)
-		tw.SetAlignment(tablewriter.ALIGN_LEFT)
-		tw.Render()
+
+		return nil
+	})
+
+	err := g.Wait()
+	if err != nil {
+		log.Fatalln(err)
 	}
 }
-
