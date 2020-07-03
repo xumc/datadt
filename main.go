@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/google/gopacket/pcap"
+	mysql2 "github.com/xumc/taildt/mysql"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"os"
@@ -14,20 +15,20 @@ func main() {
 	var g = errgroup.Group{}
 
 	g.Go(func() error {
-		ddbStream := &DDBStreamMonitor{tableChan: tableOutputChan}
-		ddbStream.Monitor([]string{"table1"})
+		//ddbStream := &DDBStreamMonitor{tableChan: tableOutputChan}
+		//ddbStream.Monitor([]string{"table1"})
 		return nil
 	})
 
 	g.Go(func() error {
-		mysql := &MysqlMonitor{stringChan: stringChan}
+		mysql := &mysql2.MysqlMonitor{StringChan: stringChan}
 		mysql.Monitor(pcap.Interface{Name: "lo0"})
 		return nil
 	})
 
 	g.Go(func() error {
-		mysqlbinlog := &MysqlBinlogMonitor{tableChan: tableOutputChan}
-		mysqlbinlog.Monitor()
+		//mysqlbinlog := &MysqlBinlogMonitor{tableChan: tableOutputChan}
+		//mysqlbinlog.Monitor()
 		return nil
 	})
 
