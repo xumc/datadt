@@ -2,56 +2,58 @@ package main
 
 import (
 	"github.com/google/gopacket/pcap"
-	mysql2 "github.com/xumc/taildt/mysql"
+	"github.com/xumc/datadt/display"
+	tcpmonitor "github.com/xumc/datadt/tcpmonitor"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"os"
 )
 
 func main() {
-	tableOutputChan := make(chan OutputItem)
-	stringChan := make(chan string)
-
 	var g = errgroup.Group{}
 
-	g.Go(func() error {
-		//ddbStream := &DDBStreamMonitor{tableChan: tableOutputChan}
-		//ddbStream.Monitor([]string{"table1"})
-		return nil
+	terminalOutputer := display.NewTerminalOutputer(os.Stdout)
+	g.Go(terminalOutputer.Run)
+
+	device := pcap.Interface{Name: "lo0"}
+
+	// HTTP
+	http := tcpmonitor.NewHttp(tcpmonitor.TcpCommon{
+		Device: device,
+		Kind:   tcpmonitor.KindHttp,
+		Name:   "http-1",
+		Port:   8000,
 	})
 
 	g.Go(func() error {
-		mysql := &mysql2.MysqlMonitor{StringChan: stringChan}
-		mysql.Monitor(pcap.Interface{Name: "lo0"})
+		tcpmonitor.RunTcpMonitor(http, terminalOutputer)
 		return nil
+	})
+
+	// MYSQL
+	mysql := tcpmonitor.NewMysql(tcpmonitor.TcpCommon{
+		Device: device,
+		Kind:   tcpmonitor.KindHttp,
+		Name:   "mysql-1",
+		Port:   3306,
 	})
 
 	g.Go(func() error {
-		//mysqlbinlog := &MysqlBinlogMonitor{tableChan: tableOutputChan}
-		//mysqlbinlog.Monitor()
+		tcpmonitor.RunTcpMonitor(mysql, terminalOutputer)
 		return nil
 	})
-
-	g.Go(func() error {
-		defaultOutputer := &DefaultOutputer{Writer: os.Stdout,}
-
-		for {
-			select {
-			case item := <- tableOutputChan:
-				err := defaultOutputer.WriteTableItem(item)
-				if err != nil {
-					return err
-				}
-			case str := <- stringChan:
-				err := defaultOutputer.WriteStringItem(str)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
+	//
+	//g.Go(func() error {
+	//	ddbStream := &DDBStreamMonitor{outputer: terminalOutputer}
+	//	ddbStream.Monitor([]string{"table1"})
+	//	return nil
+	//})
+	//
+	//g.Go(func() error {
+	//	mysqlbinlog := &MysqlBinlogMonitor{outputer: terminalOutputer}
+	//	mysqlbinlog.Monitor()
+	//	return nil
+	//})
 
 	err := g.Wait()
 	if err != nil {

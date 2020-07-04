@@ -5,25 +5,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/tcpassembly"
-	"github.com/google/gopacket/tcpassembly/tcpreader"
+	"github.com/xumc/datadt/display"
 	"io"
 	"log"
 	"strconv"
 	"strings"
 
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
 	"time"
-)
-
-type MysqlMonitor struct{
-	StringChan chan string
-}
-
-var (
-	Port = 3306
 )
 
 const (
@@ -100,73 +89,22 @@ const (
 	MYSQL_TYPE_GEOMETRY
 )
 
-var (
-	snapshotLen int32  = 65535
-	promiscuous bool   = false
-	err         error
-	timeout     time.Duration = 30 * time.Second
-	handle      *pcap.Handle
-)
-
-func (mysql *MysqlMonitor) Monitor(device pcap.Interface) {
-	// Open device
-	handle, err = pcap.OpenLive(device.Name, snapshotLen, promiscuous, timeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer handle.Close()
-
-	var filter string = "tcp and port 3306"
-	err = handle.SetBPFFilter(filter)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	streamFactory := &mysqlStreamFactory{strChan: mysql.StringChan,}
-	streamPool := tcpassembly.NewStreamPool(streamFactory)
-	assembler := tcpassembly.NewAssembler(streamPool)
-
-	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-	packets := packetSource.Packets()
-	ticker := time.Tick(time.Second)
-
-	for {
-		select {
-		case packet := <-packets:
-			if packet == nil {
-				return
-			}
-			if packet.NetworkLayer() == nil || packet.TransportLayer() == nil || packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
-				log.Println("Unusable packet")
-				continue
-			}
-			tcp := packet.TransportLayer().(*layers.TCP)
-			assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
-
-		case <-ticker:
-			assembler.FlushOlderThan(time.Now().Add(time.Second * -2))
-		}
-	}
-}
-
-type mysqlStreamFactory struct{
-	strChan chan string
-}
-
-type ProtocalStream struct {
-	net, transport gopacket.Flow
-	r              tcpreader.ReaderStream
-}
-
-type mysql struct {
+type Mysql struct{
+	TcpCommon
 	source     map[string]*connStream
 }
 
-type connStream struct {
-	packets chan *packet
-	stmtMap map[uint32]*Stmt
+func NewMysql(tc TcpCommon) *Mysql {
+	return &Mysql{
+		TcpCommon: tc,
+		source: make(map[string]*connStream),
+	}
+}
 
-	strChan chan string
+type connStream struct {
+	packets  chan *packet
+	stmtMap  map[uint32]*Stmt
+	outputer display.Outputer
 }
 
 type packet struct {
@@ -176,60 +114,42 @@ type packet struct {
 	payload   []byte
 }
 
-var (
-	mysqlInstance = &mysql{
-		source: make(map[string]*connStream),
-	}
-)
-
-func (h *mysqlStreamFactory) New(net, transport gopacket.Flow) tcpassembly.Stream {
-	mysqlStream := &ProtocalStream{
-		net:       net,
-		transport: transport,
-		r:         tcpreader.NewReaderStream(),
-	}
-	go mysqlInstance.run(net, transport, &(mysqlStream.r), h.strChan)
-
-	return &mysqlStream.r
-}
-
-func (h *mysql) run(net, transport gopacket.Flow, buf io.Reader, strChan chan string) {
+func (m *Mysql) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
 	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
 
 	//generate resolve's stream
-	if _, ok := h.source[uuid]; !ok {
+	if _, ok := m.source[uuid]; !ok {
 
 		var newStream = connStream{
 			packets:make(chan *packet, 100),
 			stmtMap:make(map[uint32]*Stmt),
-
-			strChan: strChan,
+			outputer: outputer,
 		}
 
-		h.source[uuid] = &newStream
+		m.source[uuid] = &newStream
 		go newStream.resolve()
 	}
 
 	for {
 
-		newPacket := h.newPacket(net, transport, buf)
+		newPacket := m.newPacket(net, transport, buf)
 
 		if newPacket == nil {
 			return
 		}
 
-		h.source[uuid].packets <- newPacket
+		m.source[uuid].packets <- newPacket
 	}
 
 }
 
-func (h *mysql) newPacket(net, transport gopacket.Flow, r io.Reader) *packet {
+func (m *Mysql) newPacket(net, transport gopacket.Flow, r io.Reader) *packet {
 
 	//read packet
 	var payload bytes.Buffer
 	var seq uint8
 	var err error
-	if seq, err = h.resolvePacketTo(r, &payload); err != nil {
+	if seq, err = m.resolvePacketTo(r, &payload); err != nil {
 		return nil
 	}
 
@@ -248,7 +168,7 @@ func (h *mysql) newPacket(net, transport gopacket.Flow, r io.Reader) *packet {
 		payload:payload.Bytes(),
 	}
 
-	if transport.Src().String() == strconv.Itoa(Port) {
+	if transport.Src().String() == strconv.FormatUint(uint64(m.Port), 10) {
 		pk.isClientFlow = false
 	}else{
 		pk.isClientFlow = true
@@ -257,7 +177,7 @@ func (h *mysql) newPacket(net, transport gopacket.Flow, r io.Reader) *packet {
 	return &pk
 }
 
-func (h *mysql) resolvePacketTo(r io.Reader, w io.Writer) (uint8, error) {
+func (m *Mysql) resolvePacketTo(r io.Reader, w io.Writer) (uint8, error) {
 
 	header := make([]byte, 4)
 	if n, err := io.ReadFull(r, header); err != nil {
@@ -448,7 +368,7 @@ func (stm *connStream) resolveClientPacket(payload []byte, seq int) {
 		return
 	}
 
-	stm.strChan <- msg
+	stm.outputer.Inputer() <- msg
 }
 
 

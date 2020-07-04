@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"github.com/kr/pretty"
 	"github.com/siddontang/go-mysql/canal"
+	"github.com/xumc/datadt/display"
 	"strconv"
 )
 
 type MysqlBinlogMonitor struct {
 	canal.DummyEventHandler
-	tableChan chan <- OutputItem
+	outputer display.Outputer
 }
 
 func(binlog *MysqlBinlogMonitor) Monitor() {
@@ -61,7 +62,7 @@ func(binlog *MysqlBinlogMonitor) OnRow(e *canal.RowsEvent) error {
 		}
 	}
 
-	binlog.tableChan <- OutputItem{
+	binlog.outputer.Inputer() <- display.ChangeItem{
 		TableName:e.Table.Name,
 		Action: e.Action,
 		Changes: changes,

@@ -1,4 +1,4 @@
-module github.com/xumc/taildt
+module github.com/xumc/datadt
 
 go 1.14
 

@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/xumc/datadt/display"
 	"github.com/xumc/go-dynamodb-stream-subscriber/stream"
 	"os"
 	"strings"
@@ -14,7 +15,7 @@ import (
 )
 
 type DDBStreamMonitor struct{
-	tableChan chan <- OutputItem
+	outputer display.Outputer
 }
 
 func (ds *DDBStreamMonitor) Monitor(tables []string) {
@@ -27,7 +28,7 @@ func (ds *DDBStreamMonitor) Monitor(tables []string) {
 	wg := sync.WaitGroup{}
 	for _, tt := range tables {
 		wg.Add(1)
-		go tailDDBTable(tt, streamSvc, dynamoSvc, ds.tableChan)
+		go tailDDBTable(tt, streamSvc, dynamoSvc, ds.outputer)
 	}
 }
 
@@ -83,7 +84,7 @@ func checkTables(tables []string, dynamoSvc *dynamodb.DynamoDB) {
 	}
 }
 
-func tailDDBTable(table string, streamSvc *dynamodbstreams.DynamoDBStreams, dynamoSvc *dynamodb.DynamoDB, outputer chan <- OutputItem) {
+func tailDDBTable(table string, streamSvc *dynamodbstreams.DynamoDBStreams, dynamoSvc *dynamodb.DynamoDB, outputer display.Outputer) {
 	streamSubscriber := stream.NewStreamSubscriber(dynamoSvc, streamSvc, table)
 	ch, errCh := streamSubscriber.GetStreamDataAsync()
 
@@ -95,8 +96,7 @@ func tailDDBTable(table string, streamSvc *dynamodbstreams.DynamoDBStreams, dyna
 	}(errCh)
 
 	for record := range ch {
-		fmt.Println(ch)
-		outputer <- OutputItem{
+		outputer.Inputer() <- display.ChangeItem{
 			TableName: table,
 			Action: *record.EventName,
 			Changes: translateChanges(record.Dynamodb),
