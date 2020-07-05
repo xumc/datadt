@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kr/pretty"
 	"github.com/olekukonko/tablewriter"
+	"github.com/xumc/datadt/tcpmonitor/entity"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -98,16 +99,16 @@ func (to *TerminalOutputer) Run() error {
 				if err != nil {
 					return err
 				}
-			case *http.Request:
-				err := to.writeHttpRequest(realItem)
+			case *entity.HttpPair:
+				err := to.writeHttpRequest(realItem.Request)
 				if err != nil {
 					return err
 				}
-			case *http.Response:
-				err := to.writeHttpResponse(realItem)
+				err = to.writeHttpResponse(realItem.Response)
 				if err != nil {
 					return err
 				}
+
 			default:
 				pretty.Println(realItem)
 			}

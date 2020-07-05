@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/xumc/datadt/display"
+	"github.com/xumc/datadt/tcpmonitor/entity"
 	"io"
 	"net/http"
 	"net/http/httputil"
@@ -14,21 +15,24 @@ import (
 
 type Http struct{
 	TcpCommon
-	source map[string]*httpPair
-}
-
-type httpPair struct{
-	resquest string
-	response string
+	source map[string]*entity.HttpPair
 }
 
 func NewHttp(tc TcpCommon) *Http {
 	return &Http{
 		TcpCommon: tc,
+		source: make(map[string]*entity.HttpPair),
 	}
 }
 
 func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
+	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
+
+	if _, ok := h.source[uuid]; !ok {
+		var newPair = entity.HttpPair{}
+		h.source[uuid] = &newPair
+	}
+
 	bio := bufio.NewReader(buf)
 
 	var req *http.Request
@@ -49,7 +53,9 @@ func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.
 				}
 				reader := bytes.NewReader(dumpedRespBytes)
 				copiedResq, err := http.ReadResponse(bufio.NewReader(reader), req)
-				outputer.Inputer() <- copiedResq
+				h.source[uuid].Response = copiedResq
+				outputer.Inputer() <- h.source[uuid]
+				h.source[uuid] = nil
 			}
 		} else {
 			var err error
@@ -65,7 +71,8 @@ func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.
 				}
 				reader := bytes.NewReader(dumpedReqBytes)
 				copiedReq, err := http.ReadRequest(bufio.NewReader(reader))
-				outputer.Inputer() <- copiedReq
+
+				h.source[uuid].Request = copiedReq
 			}
 		}
 	}

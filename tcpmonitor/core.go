@@ -50,7 +50,7 @@ const (
 )
 
 type Monitor interface {
-	GetDevice() pcap.Interface
+	GetDevice() string
 	GetKind() Kind
 	GetName() string
 	GetPort() uint32
@@ -58,13 +58,13 @@ type Monitor interface {
 }
 
 type TcpCommon struct {
-	Device pcap.Interface
+	Device string
 	Kind Kind
 	Name string
 	Port uint32
 }
 
-func (tc TcpCommon) GetDevice() pcap.Interface {
+func (tc TcpCommon) GetDevice() string {
 	return tc.Device
 }
 func (tc TcpCommon) GetKind() Kind {
@@ -79,7 +79,7 @@ func (tc TcpCommon) GetPort() uint32 {
 
 func RunTcpMonitor(monitor Monitor, out display.Outputer) {
 	// Open device
-	handle, err := pcap.OpenLive(monitor.GetDevice().Name, snapshotLen, promiscuous, timeout)
+	handle, err := pcap.OpenLive(monitor.GetDevice(), snapshotLen, promiscuous, timeout)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,47 +1,77 @@
 package main
 
 import (
-	"github.com/google/gopacket/pcap"
+	"flag"
+	"fmt"
+	"github.com/spf13/viper"
 	"github.com/xumc/datadt/display"
 	tcpmonitor "github.com/xumc/datadt/tcpmonitor"
 	"golang.org/x/sync/errgroup"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 func main() {
+	var configPath string
+	flag.StringVar(&configPath, "config", "", "config file path")
+
+	flag.Parse()
+
+	dir := filepath.Dir(configPath)
+	fileFullName := filepath.Base(configPath)
+	filename := strings.Split(fileFullName, ".")[0]
+
+	viper.SetConfigName(filename)
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(dir)
+	err := viper.ReadInConfig()
+	if err != nil {
+		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	}
+
 	var g = errgroup.Group{}
 
+
+	// Display
 	terminalOutputer := display.NewTerminalOutputer(os.Stdout)
 	g.Go(terminalOutputer.Run)
 
-	device := pcap.Interface{Name: "lo0"}
 
 	// HTTP
-	http := tcpmonitor.NewHttp(tcpmonitor.TcpCommon{
-		Device: device,
-		Kind:   tcpmonitor.KindHttp,
-		Name:   "http-1",
-		Port:   8000,
-	})
+	httpEndPoints := viper.GetStringMap("datasources.HTTP")
+	for name, ep := range httpEndPoints {
+		realEp := ep.(map[string]interface{})
+		http := tcpmonitor.NewHttp(tcpmonitor.TcpCommon{
+			Device: realEp["device"].(string),
+			Kind:   tcpmonitor.KindHttp,
+			Name:   name,
+			Port:   (uint32)(realEp["port"].(int)),
+		})
 
-	g.Go(func() error {
-		tcpmonitor.RunTcpMonitor(http, terminalOutputer)
-		return nil
-	})
+		g.Go(func() error {
+			tcpmonitor.RunTcpMonitor(http, terminalOutputer)
+			return nil
+		})
+	}
 
 	// MYSQL
-	mysql := tcpmonitor.NewMysql(tcpmonitor.TcpCommon{
-		Device: device,
-		Kind:   tcpmonitor.KindHttp,
-		Name:   "mysql-1",
-		Port:   3306,
-	})
+	mysqlEndPoints := viper.GetStringMap("datasources.MYSQL")
+	for name, ep := range mysqlEndPoints {
+		realEp := ep.(map[string]interface{})
+		mysql := tcpmonitor.NewMysql(tcpmonitor.TcpCommon{
+			Device: realEp["device"].(string),
+			Kind:   tcpmonitor.KindHttp,
+			Name:   name,
+			Port:   (uint32)(realEp["port"].(int)),
+		})
 
-	g.Go(func() error {
-		tcpmonitor.RunTcpMonitor(mysql, terminalOutputer)
-		return nil
-	})
+		g.Go(func() error {
+			tcpmonitor.RunTcpMonitor(mysql, terminalOutputer)
+			return nil
+		})
+	}
 	//
 	//g.Go(func() error {
 	//	ddbStream := &DDBStreamMonitor{outputer: terminalOutputer}
@@ -55,7 +85,7 @@ func main() {
 	//	return nil
 	//})
 
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
 		log.Fatalln(err)
 	}
