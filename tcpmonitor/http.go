@@ -55,7 +55,7 @@ func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.
 				copiedResq, err := http.ReadResponse(bufio.NewReader(reader), req)
 				h.source[uuid].Response = copiedResq
 				outputer.Inputer() <- h.source[uuid]
-				h.source[uuid] = nil
+				delete(h.source, uuid)
 			}
 		} else {
 			var err error

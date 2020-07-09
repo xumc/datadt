@@ -46,6 +46,7 @@ type TcpStream struct {
 type Kind uint32
 const (
 	KindHttp Kind = iota
+	KindHttp2
 	KindMysql
 )
 
