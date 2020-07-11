@@ -1,9 +1,13 @@
 datasources:
-  HTTP:
-    http-1:
-      port: 5050
+#  HTTP:
+   # http-1:
+   #   port: 5050
+   #   device: "lo0"
+  HTTP2:
+    grpc-1:
+      port: 50051
       device: "lo0"
-  MYSQL:
-    mysql-1:
-      port: 3306
-      device: "lo0"
+#  MYSQL:
+#    mysql-1:
+#      port: 3306
+#      device: "lo0"

@@ -32,8 +32,10 @@ require (
 	github.com/uber/jaeger-client-go v2.24.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.2.0+incompatible // indirect
 	github.com/xumc/go-dynamodb-stream-subscriber v0.0.0-20200531073829-e2d6155cb530
+	golang.org/x/net v0.0.0-20200520004742-59133d7f0dd7
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	google.golang.org/grpc/examples v0.0.0-20200707005602-4258d12073b4
+	google.golang.org/protobuf v1.24.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/stretchr/testify.v1 v1.2.2 // indirect
 )

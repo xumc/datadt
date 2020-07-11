@@ -56,6 +56,23 @@ func main() {
 		})
 	}
 
+	// HTTP2
+	http2EndPoints := viper.GetStringMap("datasources.HTTP2")
+	for name, ep := range http2EndPoints {
+		realEp := ep.(map[string]interface{})
+		http2 := tcpmonitor.NewHttp2(tcpmonitor.TcpCommon{
+			Device: realEp["device"].(string),
+			Kind:   tcpmonitor.KindHttp,
+			Name:   name,
+			Port:   (uint32)(realEp["port"].(int)),
+		})
+
+		g.Go(func() error {
+			tcpmonitor.RunTcpMonitor(http2, terminalOutputer)
+			return nil
+		})
+	}
+
 	// MYSQL
 	mysqlEndPoints := viper.GetStringMap("datasources.MYSQL")
 	for name, ep := range mysqlEndPoints {

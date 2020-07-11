@@ -5,6 +5,7 @@
     <content url="file://$MODULE_DIR$" />
     <content url="file://$USER_HOME$/go/src/github.com/40t/go-sniffer" />
     <content url="file://$USER_HOME$/go/src/github.com/xumc/mytest" />
+    <content url="file://$USER_HOME$/go/src/google.golang.org/grpc/examples/helloworld" />
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
