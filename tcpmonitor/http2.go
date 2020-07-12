@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/google/gopacket"
+	"github.com/kr/pretty"
 	"github.com/xumc/datadt/display"
 	"github.com/xumc/datadt/tcpmonitor/entity"
 	"golang.org/x/net/http2"
@@ -87,21 +88,10 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 			continue
 		}else {
 			clientFaceNotPassed = false
-			rf, ok := f.(*http2.DataFrame)
-			if ok {
-				fff := &http2.DataFrame{}
-				fff.FrameHeader = rf.FrameHeader
+			copiedFrame := copyFrame(f)
 
-				pointerVal := reflect.ValueOf(fff)
-				val := reflect.Indirect(pointerVal)
-
-				member := val.FieldByName("data")
-				ptrToY := unsafe.Pointer(member.UnsafeAddr())
-				realPtrToY := (*[]byte)(ptrToY)
-				*realPtrToY = make([]byte, len(rf.Data()))
-				copy(*realPtrToY, rf.Data())
-
-				frame.Frame = fff
+			if copiedFrame != nil {
+				frame.Frame = copiedFrame
 				h2.source[uuid].frameChan <- frame
 			}
 		}
@@ -116,4 +106,85 @@ func (h2Conn *Http2Conn) run() {
 			h2Conn.outputer.Inputer() <- frame
 		}
 	}
+}
+
+func copyFrame(frame http2.Frame) http2.Frame {
+	switch rf := frame.(type) {
+	case *http2.SettingsFrame:
+		copiedFrame := &http2.SettingsFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copyBytes(copiedFrame, frame, "p")
+		return copiedFrame
+	case *http2.HeadersFrame:
+		copiedFrame := &http2.HeadersFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.Priority = rf.Priority
+		copyBytes(copiedFrame, frame, "headerFragBuf")
+		return copiedFrame
+	case *http2.MetaHeadersFrame:
+		copiedFrame := &http2.MetaHeadersFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.Truncated = rf.Truncated
+		copiedFrame.Fields = rf.Fields
+		return copiedFrame
+	case *http2.WindowUpdateFrame:
+		copiedFrame := &http2.WindowUpdateFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.Increment = rf.Increment
+		return copiedFrame
+	case *http2.PingFrame:
+		copiedFrame := &http2.PingFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.Data = rf.Data
+		return copiedFrame
+	case *http2.RSTStreamFrame:
+		copiedFrame := &http2.RSTStreamFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.ErrCode = rf.ErrCode
+		return copiedFrame
+	case *http2.PriorityFrame:
+		copiedFrame := &http2.PriorityFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.PriorityParam = rf.PriorityParam
+		return copiedFrame
+	case *http2.GoAwayFrame:
+		copiedFrame := &http2.GoAwayFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.ErrCode = rf.ErrCode
+		copiedFrame.LastStreamID = rf.LastStreamID
+		copyBytes(copiedFrame, frame, "debugData")
+		return copiedFrame
+	case *http2.PushPromiseFrame:
+		copiedFrame := &http2.PushPromiseFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copiedFrame.PromiseID = rf.PromiseID
+		copyBytes(copiedFrame, frame, "headerFragBuf")
+		return copiedFrame
+	case *http2.DataFrame:
+		copiedFrame := &http2.DataFrame{}
+		copiedFrame.FrameHeader = rf.FrameHeader
+		copyBytes(copiedFrame, frame, "data")
+		return copiedFrame
+	default:
+		pretty.Println(frame)
+		panic("unsupport frame type")
+	}
+
+	return nil
+}
+
+func copyBytes(copiedFrame http2.Frame, rf http2.Frame, fieldName string) {
+	pointerVal := reflect.ValueOf(copiedFrame)
+	val := reflect.Indirect(pointerVal)
+	member := val.FieldByName(fieldName)
+	ptrToP := unsafe.Pointer(member.UnsafeAddr())
+	realPtrToP := (*[]byte)(ptrToP)
+
+	rfPointerVal := reflect.ValueOf(rf)
+	rfVal := reflect.Indirect(rfPointerVal)
+	pv := rfVal.FieldByName(fieldName)
+	rtPData := pv.Bytes()
+
+	*realPtrToP = make([]byte, len(rtPData))
+	copy(*realPtrToP, rtPData)
 }

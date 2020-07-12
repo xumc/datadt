@@ -125,6 +125,8 @@ func (to *TerminalOutputer) Run() error {
 
 func (to *TerminalOutputer) writeHttp2Frame(realItem *entity.Http2Frame) error {
 	switch rf := realItem.Frame.(type) {
+	case *http2.SettingsFrame:
+		pretty.Println(rf)
 	case *http2.DataFrame:
 		to.writer.Write(([]byte)(fmt.Sprintln(realItem.IsClientFlow, " => ", string(rf.Data()))))
 	default:
