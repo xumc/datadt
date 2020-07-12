@@ -5,6 +5,7 @@ import (
 	"github.com/kr/pretty"
 	"github.com/olekukonko/tablewriter"
 	"github.com/xumc/datadt/tcpmonitor/entity"
+	"golang.org/x/net/http2"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -108,11 +109,26 @@ func (to *TerminalOutputer) Run() error {
 				if err != nil {
 					return err
 				}
-
+			case *entity.Http2Frame:
+				err := to.writeHttp2Frame(realItem)
+				if err != nil {
+					return err
+				}
 			default:
 				pretty.Println(realItem)
 			}
 		}
+	}
+
+	return nil
+}
+
+func (to *TerminalOutputer) writeHttp2Frame(realItem *entity.Http2Frame) error {
+	switch rf := realItem.Frame.(type) {
+	case *http2.DataFrame:
+		to.writer.Write(([]byte)(fmt.Sprintln(realItem.IsClientFlow, " => ", string(rf.Data()))))
+	default:
+		to.writer.Write(([]byte)(fmt.Sprintln(realItem.IsClientFlow, " => ", rf)))
 	}
 
 	return nil

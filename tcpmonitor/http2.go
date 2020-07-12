@@ -5,23 +5,23 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/google/gopacket"
-	"github.com/kr/pretty"
 	"github.com/xumc/datadt/display"
+	"github.com/xumc/datadt/tcpmonitor/entity"
 	"golang.org/x/net/http2"
 	"io"
+	"reflect"
 	"strconv"
+	"unsafe"
 )
 
 type Http2 struct {
 	TcpCommon
 	source map[string]*Http2Conn
 }
-type Http2Frame struct {
-	frame http2.Frame
-	isClientFlow bool
-}
+
 type Http2Conn struct {
-	frameChan chan *Http2Frame
+	outputer display.Outputer
+	frameChan chan *entity.Http2Frame
 }
 
 func NewHttp2(tc TcpCommon) *Http2 {
@@ -38,14 +38,15 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 
 	if _, ok := h2.source[uuid]; !ok {
 		var newConn = &Http2Conn{
-			frameChan: make(chan *Http2Frame),
+			outputer: outputer,
+			frameChan: make(chan *entity.Http2Frame),
 		}
 		h2.source[uuid] = newConn
 
 		go newConn.run()
 	}
 
-	var startWithClientFace = true
+	var clientFaceNotPassed = true
 
 	bio := bufio.NewReader(buf)
 	emptyWriter := bufio.NewWriter(nil)
@@ -54,22 +55,23 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 	for {
 		isFromServer := transport.Src().String() == strconv.FormatUint(uint64(h2.Port), 10)
 
-		frame := &Http2Frame{
-			isClientFlow: !isFromServer,
+		frame := &entity.Http2Frame{
+			IsClientFlow: !isFromServer,
 		}
 
-		if !isFromServer && startWithClientFace {
+		if !isFromServer && clientFaceNotPassed {
 			bs := make([]byte, len(http2.ClientPreface))
 			n, err := io.ReadFull(bio, bs)
 			if err == io.EOF {
 				return
-			} else if err == io.ErrUnexpectedEOF {
+			} else if err != nil {
+				fmt.Println(err)
 				newReader := io.MultiReader(bytes.NewReader(bs[:n]), bio)
 				bio = bufio.NewReader(newReader)
 				continue
 			} else if string(bs) == http2.ClientPreface {
 				fmt.Println("clientface")
-				startWithClientFace = false
+				clientFaceNotPassed = false
 				continue
 			}
 		}
@@ -84,8 +86,24 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 			fmt.Println("server err: ", err)
 			continue
 		}else {
-			frame.frame = f
-			h2.source[uuid].frameChan <- frame
+			clientFaceNotPassed = false
+			rf, ok := f.(*http2.DataFrame)
+			if ok {
+				fff := &http2.DataFrame{}
+				fff.FrameHeader = rf.FrameHeader
+
+				pointerVal := reflect.ValueOf(fff)
+				val := reflect.Indirect(pointerVal)
+
+				member := val.FieldByName("data")
+				ptrToY := unsafe.Pointer(member.UnsafeAddr())
+				realPtrToY := (*[]byte)(ptrToY)
+				*realPtrToY = make([]byte, len(rf.Data()))
+				copy(*realPtrToY, rf.Data())
+
+				frame.Frame = fff
+				h2.source[uuid].frameChan <- frame
+			}
 		}
 
 	}
@@ -95,13 +113,7 @@ func (h2Conn *Http2Conn) run() {
 	for {
 		select {
 		case frame := <- h2Conn.frameChan:
-			switch rf := frame.frame.(type) {
-			//case *http2.HeadersFrame:
-			case *http2.DataFrame:
-				pretty.Println(frame.isClientFlow, " => ", string(rf.Data()))
-			default:
-				pretty.Println(frame.isClientFlow, " => ", rf)
-			}
+			h2Conn.outputer.Inputer() <- frame
 		}
 	}
 }

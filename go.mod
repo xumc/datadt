@@ -8,10 +8,11 @@ require (
 	github.com/cznic/mathutil v0.0.0-20181122101859-297441e03548 // indirect
 	github.com/cznic/sortutil v0.0.0-20181122101858-f5f958428db8 // indirect
 	github.com/etcd-io/gofail v0.0.0-20190801230047-ad7f989257ca // indirect
-	github.com/golang/protobuf v1.4.2
+	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/grpc-ecosystem/grpc-gateway v1.12.1 // indirect
+	github.com/jinzhu/copier v0.0.0-20190924061706-b57f9002281a
 	github.com/jmoiron/sqlx v1.2.0 // indirect
 	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f // indirect
 	github.com/juju/testing v0.0.0-20200608005635-e4eedbc6f7aa // indirect
@@ -34,8 +35,8 @@ require (
 	github.com/xumc/go-dynamodb-stream-subscriber v0.0.0-20200531073829-e2d6155cb530
 	golang.org/x/net v0.0.0-20200520004742-59133d7f0dd7
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
-	google.golang.org/grpc/examples v0.0.0-20200707005602-4258d12073b4
-	google.golang.org/protobuf v1.24.0
+	google.golang.org/grpc/examples v0.0.0-20200707005602-4258d12073b4 // indirect
+	google.golang.org/protobuf v1.24.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/stretchr/testify.v1 v1.2.2 // indirect
 )
