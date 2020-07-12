@@ -6,6 +6,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/xumc/datadt/tcpmonitor/entity"
 	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
+	"google.golang.org/grpc/examples/helloworld/helloworld"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -125,12 +127,40 @@ func (to *TerminalOutputer) Run() error {
 
 func (to *TerminalOutputer) writeHttp2Frame(realItem *entity.Http2Frame) error {
 	switch rf := realItem.Frame.(type) {
+	case *http2.HeadersFrame:
+		decoder := hpack.NewDecoder(2048, nil)
+		hf, _ := decoder.DecodeFull(rf.HeaderBlockFragment())
+		for _, h := range hf {
+			if h.Name == ":path" {
+				fmt.Println(h.Value)
+				break
+			}
+		}
 	case *http2.SettingsFrame:
 		pretty.Println(rf)
+	case *http2.MetaHeadersFrame:
+		pretty.Println(rf)
+	case *http2.WindowUpdateFrame:
+	case *http2.PingFrame:
 	case *http2.DataFrame:
-		to.writer.Write(([]byte)(fmt.Sprintln(realItem.IsClientFlow, " => ", string(rf.Data()))))
+		//to.writer.Write(([]byte)(fmt.Sprintln(realItem.IsClientFlow, " => ", string(rf.Data()))))
+		if realItem.IsClientFlow {
+			msg := helloworld.HelloRequest{
+			}
+			err := msg.XXX_Unmarshal(rf.Data()[5:])
+			pretty.Println(realItem.IsClientFlow, err, msg)
+		} else {
+			msg := helloworld.HelloReply{
+			}
+			err := msg.XXX_Unmarshal(rf.Data()[5:])
+			pretty.Println(realItem.IsClientFlow, err, msg)
+		}
+	case *http2.RSTStreamFrame:
+	case *http2.PriorityFrame:
+	case *http2.GoAwayFrame:
+	case *http2.PushPromiseFrame:
 	default:
-		to.writer.Write(([]byte)(fmt.Sprintln(realItem.IsClientFlow, " => ", rf)))
+		pretty.Println("unknown frame type", rf)
 	}
 
 	return nil

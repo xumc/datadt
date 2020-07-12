@@ -81,7 +81,6 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 		if err == io.EOF {
 			return
 		} else if err == io.ErrUnexpectedEOF {
-			fmt.Println("server unexpected err: ", isFromServer, err)
 			continue
 		} else if err != nil {
 			fmt.Println("server err: ", err)
