@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	snapshotLen int32  = 65535
+	snapshotLen int32  = 1024
 	promiscuous bool   = false
 	timeout     time.Duration = 30 * time.Second
 	handle      *pcap.Handle
@@ -117,7 +117,7 @@ func RunTcpMonitor(monitor Monitor, out display.Outputer) {
 			assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
 
 		case <-ticker:
-			assembler.FlushOlderThan(time.Now().Add(time.Second * -2))
+			assembler.FlushOlderThan(time.Now().Add(time.Second))
 		}
 	}
 }

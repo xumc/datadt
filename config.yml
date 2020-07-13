@@ -1,8 +1,8 @@
 datasources:
-#  HTTP:
-   # http-1:
-   #   port: 5050
-   #   device: "lo0"
+  HTTP:
+    http-1:
+      port: 8000
+      device: "lo0"
   HTTP2:
     grpc-1:
       port: 50051

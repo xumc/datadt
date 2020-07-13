@@ -102,12 +102,13 @@ func (to *TerminalOutputer) Run() error {
 				if err != nil {
 					return err
 				}
-			case *entity.HttpPair:
-				err := to.writeHttpRequest(realItem.Request)
+			case *http.Request:
+				err := to.writeHttpRequest(realItem)
 				if err != nil {
 					return err
 				}
-				err = to.writeHttpResponse(realItem.Response)
+			case *http.Response:
+				err := to.writeHttpResponse(realItem)
 				if err != nil {
 					return err
 				}

@@ -6,31 +6,54 @@ import (
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/xumc/datadt/display"
-	"github.com/xumc/datadt/tcpmonitor/entity"
 	"io"
 	"net/http"
 	"net/http/httputil"
 	"strconv"
 )
 
-type Http struct{
+type Http struct {
 	TcpCommon
-	source map[string]*entity.HttpPair
+	source map[string]*HttpConn
+}
+
+type HttpConn struct {
+	outputer     display.Outputer
+	requestChan  chan *http.Request
+	responseChan chan *http.Response
+}
+
+func (conn *HttpConn) run() {
+	for {
+		select {
+		case req := <-conn.requestChan:
+			conn.outputer.Inputer() <- req
+		case resp := <-conn.responseChan:
+			conn.outputer.Inputer() <- resp
+		}
+	}
 }
 
 func NewHttp(tc TcpCommon) *Http {
 	return &Http{
 		TcpCommon: tc,
-		source: make(map[string]*entity.HttpPair),
+		source:    make(map[string]*HttpConn),
 	}
 }
 
-func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
+func (h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
 	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
 
 	if _, ok := h.source[uuid]; !ok {
-		var newPair = entity.HttpPair{}
-		h.source[uuid] = &newPair
+		newConn := &HttpConn{
+			outputer: outputer,
+			requestChan: make(chan *http.Request),
+			responseChan: make(chan *http.Response),
+		}
+
+		h.source[uuid] = newConn
+
+		go newConn.run()
 	}
 
 	bio := bufio.NewReader(buf)
@@ -53,9 +76,10 @@ func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.
 				}
 				reader := bytes.NewReader(dumpedRespBytes)
 				copiedResq, err := http.ReadResponse(bufio.NewReader(reader), req)
-				h.source[uuid].Response = copiedResq
-				outputer.Inputer() <- h.source[uuid]
-				delete(h.source, uuid)
+				if err != nil {
+					fmt.Println(err)
+				}
+				h.source[uuid].responseChan <- copiedResq
 			}
 		} else {
 			var err error
@@ -71,8 +95,10 @@ func(h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.
 				}
 				reader := bytes.NewReader(dumpedReqBytes)
 				copiedReq, err := http.ReadRequest(bufio.NewReader(reader))
-
-				h.source[uuid].Request = copiedReq
+				if err != nil {
+					fmt.Println(err)
+				}
+				h.source[uuid].requestChan <- copiedReq
 			}
 		}
 	}
