@@ -35,14 +35,17 @@ func NewHttp2(tc TcpCommon) *Http2 {
 
 func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
 	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
-	fmt.Println(uuid)
 
-	if _, ok := h2.source[uuid]; !ok {
-		var newConn = &Http2Conn{
+	var newConn *Http2Conn
+	if newConn, ok := h2.source[uuid]; !ok {
+		newConn = &Http2Conn{
 			outputer: outputer,
 			frameChan: make(chan *entity.Http2Frame),
 		}
+
+		h2.mu.Lock()
 		h2.source[uuid] = newConn
+		h2.mu.Unlock()
 
 		go newConn.run()
 	}
@@ -91,7 +94,7 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 
 			if copiedFrame != nil {
 				frame.Frame = copiedFrame
-				h2.source[uuid].frameChan <- frame
+				newConn.frameChan <- frame
 			}
 		}
 

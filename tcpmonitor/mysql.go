@@ -117,16 +117,20 @@ type packet struct {
 func (m *Mysql) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
 	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
 
+	var newStream *connStream
 	//generate resolve's stream
-	if _, ok := m.source[uuid]; !ok {
+	if newStream, ok := m.source[uuid]; !ok {
 
-		var newStream = connStream{
+		newStream = &connStream{
 			packets:make(chan *packet, 100),
 			stmtMap:make(map[uint32]*Stmt),
 			outputer: outputer,
 		}
 
-		m.source[uuid] = &newStream
+		m.mu.Lock()
+		m.source[uuid] = newStream
+		m.mu.Unlock()
+
 		go newStream.resolve()
 	}
 
@@ -138,7 +142,7 @@ func (m *Mysql) Run(net, transport gopacket.Flow, buf io.Reader, outputer displa
 			return
 		}
 
-		m.source[uuid].packets <- newPacket
+		newStream.packets <- newPacket
 	}
 
 }

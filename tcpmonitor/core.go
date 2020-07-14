@@ -10,11 +10,12 @@ import (
 	"github.com/xumc/datadt/display"
 	"io"
 	"log"
+	"sync"
 	"time"
 )
 
 var (
-	snapshotLen int32  = 1024
+	snapshotLen int32  = 65535
 	promiscuous bool   = false
 	timeout     time.Duration = 30 * time.Second
 	handle      *pcap.Handle
@@ -59,6 +60,7 @@ type Monitor interface {
 }
 
 type TcpCommon struct {
+	mu sync.Mutex
 	Device string
 	Kind Kind
 	Name string
