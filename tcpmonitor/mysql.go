@@ -118,8 +118,8 @@ func (m *Mysql) Run(net, transport gopacket.Flow, buf io.Reader, outputer displa
 	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
 
 	var newStream *connStream
-	//generate resolve's stream
-	if newStream, ok := m.source[uuid]; !ok {
+	var ok bool
+	if newStream, ok = m.source[uuid]; !ok {
 
 		newStream = &connStream{
 			packets:make(chan *packet, 100),

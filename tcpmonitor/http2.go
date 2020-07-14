@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/google/gopacket"
-	"github.com/kr/pretty"
 	"github.com/xumc/datadt/display"
 	"github.com/xumc/datadt/tcpmonitor/entity"
 	"golang.org/x/net/http2"
@@ -37,7 +36,8 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 	uuid := fmt.Sprintf("%v:%v", net.FastHash(), transport.FastHash())
 
 	var newConn *Http2Conn
-	if newConn, ok := h2.source[uuid]; !ok {
+	var ok bool
+	if newConn, ok = h2.source[uuid]; !ok {
 		newConn = &Http2Conn{
 			outputer: outputer,
 			frameChan: make(chan *entity.Http2Frame),
@@ -69,12 +69,10 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 			if err == io.EOF {
 				return
 			} else if err != nil {
-				fmt.Println(err)
 				newReader := io.MultiReader(bytes.NewReader(bs[:n]), bio)
 				bio = bufio.NewReader(newReader)
 				continue
 			} else if string(bs) == http2.ClientPreface {
-				fmt.Println("clientface")
 				clientFaceNotPassed = false
 				continue
 			}
@@ -86,7 +84,6 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 		} else if err == io.ErrUnexpectedEOF {
 			continue
 		} else if err != nil {
-			fmt.Println("server err: ", err)
 			continue
 		}else {
 			clientFaceNotPassed = false
@@ -168,7 +165,6 @@ func copyFrame(frame http2.Frame) http2.Frame {
 		copyBytes(copiedFrame, frame, "data")
 		return copiedFrame
 	default:
-		pretty.Println(frame)
 		panic("unsupport frame type")
 	}
 

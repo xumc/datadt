@@ -4,6 +4,10 @@ datasources:
       port: 8000
       device: "lo0"
   HTTP2:
+    http2-1:
+      port: 5050
+      device: "lo0"
+  GRPC:
     grpc-1:
       port: 50051
       device: "lo0"

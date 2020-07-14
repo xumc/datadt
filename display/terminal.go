@@ -132,10 +132,7 @@ func (to *TerminalOutputer) writeHttp2Frame(realItem *entity.Http2Frame) error {
 		decoder := hpack.NewDecoder(2048, nil)
 		hf, _ := decoder.DecodeFull(rf.HeaderBlockFragment())
 		for _, h := range hf {
-			if h.Name == ":path" {
-				fmt.Println(h.Value)
-				break
-			}
+			fmt.Println(h.Name, " => ", h.Value)
 		}
 	case *http2.SettingsFrame:
 		pretty.Println(rf)

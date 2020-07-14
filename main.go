@@ -73,6 +73,23 @@ func main() {
 		})
 	}
 
+	// Grpc
+	grpcEndPoints := viper.GetStringMap("datasources.GRPC")
+	for name, ep := range grpcEndPoints {
+		realEp := ep.(map[string]interface{})
+		grpc := tcpmonitor.NewGrpc(tcpmonitor.TcpCommon{
+			Device: realEp["device"].(string),
+			Kind:   tcpmonitor.KindHttp,
+			Name:   name,
+			Port:   (uint32)(realEp["port"].(int)),
+		})
+
+		g.Go(func() error {
+			tcpmonitor.RunTcpMonitor(grpc, terminalOutputer)
+			return nil
+		})
+	}
+
 	// MYSQL
 	mysqlEndPoints := viper.GetStringMap("datasources.MYSQL")
 	for name, ep := range mysqlEndPoints {
