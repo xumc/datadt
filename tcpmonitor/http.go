@@ -21,6 +21,7 @@ type HttpConn struct {
 	outputer     display.Outputer
 	requestChan  chan *http.Request
 	responseChan chan *http.Response
+	exitChan     chan struct{}
 }
 
 func (conn *HttpConn) run() {
@@ -51,7 +52,12 @@ func (h *Http) Run(net, transport gopacket.Flow, buf io.Reader, outputer display
 			outputer: outputer,
 			requestChan: make(chan *http.Request),
 			responseChan: make(chan *http.Response),
+			exitChan: make(chan struct{}),
 		}
+
+		defer func() {
+			newConn.exitChan <-struct{}{}
+		}()
 
 		h.mu.Lock()
 		h.source[uuid] = newConn

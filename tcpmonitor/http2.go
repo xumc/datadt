@@ -22,6 +22,7 @@ type Http2 struct {
 type Http2Conn struct {
 	outputer display.Outputer
 	frameChan chan *entity.Http2Frame
+	clientFaceNotPassed bool
 }
 
 func NewHttp2(tc TcpCommon) *Http2 {
@@ -30,6 +31,7 @@ func NewHttp2(tc TcpCommon) *Http2 {
 		source:    make(map[string]*Http2Conn),
 	}
 }
+
 
 
 func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer display.Outputer) {
@@ -41,6 +43,7 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 		newConn = &Http2Conn{
 			outputer: outputer,
 			frameChan: make(chan *entity.Http2Frame),
+			clientFaceNotPassed: true,
 		}
 
 		h2.mu.Lock()
@@ -49,8 +52,6 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 
 		go newConn.run()
 	}
-
-	var clientFaceNotPassed = true
 
 	bio := bufio.NewReader(buf)
 	emptyWriter := bufio.NewWriter(nil)
@@ -63,7 +64,7 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 			IsClientFlow: !isFromServer,
 		}
 
-		if !isFromServer && clientFaceNotPassed {
+		if !isFromServer && newConn.clientFaceNotPassed {
 			bs := make([]byte, len(http2.ClientPreface))
 			n, err := io.ReadFull(bio, bs)
 			if err == io.EOF {
@@ -73,7 +74,7 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 				bio = bufio.NewReader(newReader)
 				continue
 			} else if string(bs) == http2.ClientPreface {
-				clientFaceNotPassed = false
+				newConn.clientFaceNotPassed = false
 				continue
 			}
 		}
@@ -86,7 +87,7 @@ func (h2 *Http2) Run(net, transport gopacket.Flow, buf io.Reader, outputer displ
 		} else if err != nil {
 			continue
 		}else {
-			clientFaceNotPassed = false
+			newConn.clientFaceNotPassed = false
 			copiedFrame := copyFrame(f)
 
 			if copiedFrame != nil {

@@ -10,3 +10,4 @@
 7. kafka
 8. write to file
 9. read pcap file
+10. kill sudo
