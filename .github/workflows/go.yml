@@ -19,7 +19,7 @@ jobs:
         go-version: 1.15
 
     - name: Build
-      run: make build-linux
+      run: make
 
     - name: Test
       run: go test -v ./...
