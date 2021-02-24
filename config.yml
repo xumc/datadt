@@ -1,16 +1,15 @@
 datasources:
   HTTP:
-    http-1:
-      port: 8000
+    inventory-http-1:
+      port: 4567
       device: "lo0"
-  HTTP2:
-    http2-1:
-      port: 5050
+    inventory-ddb-1:
+      port: 8888
       device: "lo0"
-  GRPC:
-    grpc-1:
-      port: 50051
-      device: "lo0"
+#  HTTP2:
+#    grpc-1:
+#      port: 50051
+#      device: "lo0"
 #  MYSQL:
 #    mysql-1:
 #      port: 3306
