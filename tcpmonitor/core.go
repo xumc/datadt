@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	snapshotLen int32  = 65535
-	promiscuous bool   = false
-	timeout     time.Duration = 30 * time.Second
+	snapshotLen int32  	= 1024
+	promiscuous 	 	= false
+	timeout      		= time.Second
 	handle      *pcap.Handle
 
 	registeredMonitors = make(map[string]Monitor)

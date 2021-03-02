@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/spf13/viper"
 	"github.com/xumc/datadt/display"
@@ -13,12 +12,7 @@ import (
 	"strings"
 )
 
-func main() {
-	var configPath string
-	flag.StringVar(&configPath, "config", "", "config file path")
-
-	flag.Parse()
-
+func startWithConfigMode(configPath string) error {
 	dir := filepath.Dir(configPath)
 	fileFullName := filepath.Base(configPath)
 	filename := strings.Split(fileFullName, ".")[0]
@@ -28,7 +22,7 @@ func main() {
 	viper.AddConfigPath(dir)
 	err := viper.ReadInConfig()
 	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+		return fmt.Errorf("Fatal error config file: %s \n", err)
 	}
 
 	var g = errgroup.Group{}
@@ -122,5 +116,8 @@ func main() {
 	err = g.Wait()
 	if err != nil {
 		log.Fatalln(err)
+		return err
 	}
+
+	return nil
 }
